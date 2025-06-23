@@ -13,6 +13,17 @@ const Groups = () => (
   </div>
 );
 
+const Balances = () => (
+  <div className="card h-[600px] flex items-center justify-center">
+    <div className="text-center">
+      <LoadingSpinner />
+      <p className="mt-4 text-gray-600 dark:text-gray-400">
+        Fetching treasury balances...
+      </p>
+    </div>
+  </div>
+);
+
 const Flows = ({ progress }) => (
   <div className="card h-[600px] flex items-center justify-center">
     <div className="text-center">
@@ -32,5 +43,6 @@ const Flows = ({ progress }) => (
 
 export default {
   Groups,
+  Balances,
   Flows
 };

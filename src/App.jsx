@@ -5,9 +5,12 @@ import Dashboard from './components/Dashboard'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000, // 1 minute
-      gcTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: Infinity, // Never consider data stale
+      gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
       retry: 3,
+      refetchOnWindowFocus: false, // Disable refetch on window focus
+      refetchOnReconnect: false, // Disable refetch on reconnect
+      refetchInterval: false, // Disable interval refetching
     },
   },
 })

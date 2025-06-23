@@ -1,10 +1,16 @@
 import { batchFindPaths } from './circlesRpc';
-import { calculateFlowPairs } from '../utils/helpers';
+import { calculateFilteredFlowPairs } from '../utils/helpers';
 import cacheService from './cacheService';
 
-export const calculateAllFlows = async (groups, onProgress) => {
-  const pairs = calculateFlowPairs(groups);
-  console.log(`Calculating flows for ${pairs.length} pairs...`);
+export const calculateFilteredFlows = async (allGroups, filteredGroups, onProgress) => {
+  console.log(`Filtered groups for flow calculation:`, filteredGroups.length, filteredGroups);
+  
+  const pairs = calculateFilteredFlowPairs(allGroups, filteredGroups);
+  console.log(`Calculating flows for ${pairs.length} pairs (filtered from ${allGroups.length * (allGroups.length - 1)} potential pairs)...`);
+  console.log(`Source groups (with balance > threshold):`, filteredGroups.map(g => ({
+    group: g.group,
+    balance: g.balanceCRC
+  })));
   
   const flows = await batchFindPaths(pairs, onProgress);
   

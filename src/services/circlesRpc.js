@@ -17,12 +17,11 @@ export const fetchGroups = async () => {
       Columns: ["group", "mintHandler", "treasury"],
       Filter: [{
         Type: "FilterPredicate",
-        FilterType: "NotEquals",
+        FilterType: "IsNotNull",
         Column: "mintHandler",
-        Value: "Null"
+        Value: "undefined"
       }],
-      Order: [],
-      Limit: 40
+      Order: []
     }]
   };
 
@@ -69,9 +68,109 @@ export const fetchGroups = async () => {
   }
 };
 
+
+export const getTreasuryBalance = async (treasuryAddress) => {
+  const requestBody = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "circlesV2_getTotalBalance",
+    params: [treasuryAddress.toLowerCase(), true]
+  };
+
+  try {
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch balance: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error(`Error fetching balance for ${treasuryAddress}:`, data.error);
+      return null;
+    }
+
+    // The result is the balance string directly
+    return data.result;
+  } catch (error) {
+    console.error(`Error fetching balance for ${treasuryAddress}:`, error);
+    return null;
+  }
+};
+
+// Batch get treasury balances
+export const batchGetTreasuryBalances = async (groups) => {
+  if (!groups || groups.length === 0) return [];
+
+  const balances = [];
+  const batches = chunk(groups, BATCH_SIZE);
+
+  console.log(`Fetching treasury balances for ${groups.length} groups...`);
+
+  for (const batch of batches) {
+    const batchPromises = batch.map(async (group) => {
+      // Use the treasury address for this specific group
+      const treasuryAddress = group.treasury.toLowerCase();
+      const cached = cacheService.get('treasuryBalances', treasuryAddress);
+      
+      if (cached) {
+        return { ...group, ...cached };
+      }
+
+      const result = await getTreasuryBalance(treasuryAddress);
+      
+      if (result) {
+        // Convert the balance string to CRC
+        const balanceCRC = parseFloat(result);
+        const balanceData = {
+          totalBalance: result,
+          balanceCRC: balanceCRC
+        };
+        
+        console.log(`Treasury ${treasuryAddress} balance: ${balanceCRC} CRC`);
+        
+        cacheService.set('treasuryBalances', treasuryAddress, balanceData);
+        return { ...group, ...balanceData };
+      }
+      
+      return { ...group, totalBalance: '0', balanceCRC: 0 };
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    balances.push(...batchResults);
+
+    // Small delay between batches
+    await delay(100);
+  }
+
+  // Log balance distribution
+  const balanceRanges = {
+    '0': 0,
+    '1-100': 0,
+    '100-1000': 0,
+    '1000-10000': 0,
+    '10000+': 0
+  };
+  
+  balances.forEach(b => {
+    if (b.balanceCRC === 0) balanceRanges['0']++;
+    else if (b.balanceCRC < 100) balanceRanges['1-100']++;
+    else if (b.balanceCRC < 1000) balanceRanges['100-1000']++;
+    else if (b.balanceCRC < 10000) balanceRanges['1000-10000']++;
+    else balanceRanges['10000+']++;
+  });
+  
+  console.log(`Fetched balances for ${balances.length} treasuries. Distribution:`, balanceRanges);
+  return balances;
+};
+
 export const fetchTreasuryBalances = async (treasuryAddress) => {
   // Check cache first
-  const cacheKey = `balances:${treasuryAddress.toLowerCase()}`;
   const cached = cacheService.get('balances', treasuryAddress.toLowerCase());
   if (cached) return cached;
 
@@ -197,11 +296,11 @@ export const batchFindPaths = async (pairs, onProgress) => {
           fromGroup: pair.fromGroup,
           toGroup: pair.toGroup,
           maxFlowCrc: weiToCrc(result.maxFlow),
-          // Store the transfers data
+          sourceBalance: pair.sourceBalance,
           transfers: result.transfers || []
         };
         
-        console.log(`Found flow: ${pair.fromGroup} -> ${pair.toGroup}: ${flowData.maxFlowCrc} CRC (${flowData.transfers.length} transfers)`);
+        console.log(`Found flow: ${pair.fromGroup} -> ${pair.toGroup}: ${flowData.maxFlowCrc} CRC`);
         
         cacheService.set('flows', pair.key, flowData);
         return { key: pair.key, result: flowData };
@@ -224,7 +323,7 @@ export const batchFindPaths = async (pairs, onProgress) => {
     }
 
     // Small delay between batches to avoid overwhelming the RPC
-    await delay(1000);
+    await delay(500);
   }
 
   console.log(`Completed flow calculations. Found ${Object.keys(results).length} non-zero flows out of ${pairs.length} attempts`);
@@ -252,7 +351,7 @@ export const fetchProfiles = async (addresses) => {
   toFetch.forEach(addr => {
     const mockProfile = {
       address: addr,
-      username: null, // Will be null for most addresses
+      username: null,
       avatarUrl: null
     };
     

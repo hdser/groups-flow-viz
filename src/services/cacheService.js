@@ -42,7 +42,7 @@ class CacheService {
       groups: 5 * 60 * 1000, // 5 minutes
       flows: 60 * 1000, // 1 minute
       profiles: 60 * 60 * 1000, // 1 hour
-      balances: 2 * 60 * 1000 // 2 minutes for balance data
+      balances: 0 * 60 * 1000 // 2 minutes for balance data
     };
     return ttlMap[key] || 60 * 1000;
   }

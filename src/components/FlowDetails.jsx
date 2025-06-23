@@ -89,6 +89,20 @@ export default function FlowDetails({ flows }) {
             <p className="font-mono text-sm">{formatAddress(selectedNode.mintHandler)}</p>
           </div>
           
+          {selectedNode.balance !== undefined && (
+            <div>
+              <label className="text-sm text-gray-600">Treasury Balance</label>
+              <p className={`font-medium text-lg ${
+                selectedNode.balance === 0 ? 'text-gray-500' :
+                selectedNode.balance < 100 ? 'text-yellow-600' :
+                selectedNode.balance > 10000 ? 'text-green-600' :
+                'text-circles-purple'
+              }`}>
+                {formatCRC(selectedNode.balance)} CRC
+              </p>
+            </div>
+          )}
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600">Total Inflow</label>
@@ -108,6 +122,29 @@ export default function FlowDetails({ flows }) {
     const transfers = selectedFlow.transfers || [];
     const metrics = calculateFlowMetrics();
     
+    // Calculate token usage from source treasury
+    const calculateTokenUsage = () => {
+      if (!transfers || transfers.length === 0 || !treasuryBalances) return {};
+      
+      const sourceTreasury = selectedFlow.sourceTreasury.toLowerCase();
+      const tokenUsage = {};
+      
+      // Find all transfers that originate from the source treasury
+      transfers.forEach(transfer => {
+        if (transfer.from.toLowerCase() === sourceTreasury) {
+          const tokenOwner = transfer.tokenOwner.toLowerCase();
+          if (!tokenUsage[tokenOwner]) {
+            tokenUsage[tokenOwner] = BigInt(0);
+          }
+          tokenUsage[tokenOwner] += BigInt(transfer.value);
+        }
+      });
+      
+      return tokenUsage;
+    };
+    
+    const tokenUsage = calculateTokenUsage();
+    
     return (
       <div className="card">
         <h3 className="font-semibold mb-4">Flow Path Details</h3>
@@ -116,6 +153,11 @@ export default function FlowDetails({ flows }) {
             <div>
               <label className="text-sm text-gray-600">From Group</label>
               <p className="font-mono text-sm">{selectedFlow.fromGroup || selectedFlow.source}</p>
+              {selectedFlow.sourceBalance !== undefined && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Balance: {formatCRC(selectedFlow.sourceBalance)} CRC
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm text-gray-600">To Group</label>
@@ -139,6 +181,16 @@ export default function FlowDetails({ flows }) {
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <h4 className="text-sm font-semibold text-gray-700">Treasury Analysis</h4>
               
+              {/* Summary of token usage */}
+              {transfers && transfers.length > 0 && (
+                <div className="text-xs text-gray-600 mb-2">
+                  {(() => {
+                    const usedTokens = Object.keys(tokenUsage).length;
+                    return `Using ${usedTokens} of ${treasuryBalances.length} available tokens in treasury`;
+                  })()}
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-gray-500">Total Treasury Balance</label>
@@ -158,13 +210,44 @@ export default function FlowDetails({ flows }) {
 
               <div>
                 <label className="text-xs text-gray-500 mb-2 block">Token Balances ({treasuryBalances.length} tokens)</label>
-                <div className="max-h-32 overflow-y-auto space-y-1">
-                  {treasuryBalances.map((balance, index) => (
-                    <div key={index} className="flex justify-between text-xs">
-                      <span className="font-mono text-gray-600">{formatAddress(balance.tokenAddress)}</span>
-                      <span className="font-medium">{formatCRC(weiToCrc(balance.demurragedTotalBalance))} CRC</span>
-                    </div>
-                  ))}
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {treasuryBalances.map((balance, index) => {
+                    // Calculate how much of this token is used in the flow
+                    const tokenAddress = balance.tokenAddress.toLowerCase();
+                    const tokenUsedWei = tokenUsage[tokenAddress] || BigInt(0);
+                    const tokenUsedCrc = weiToCrc(tokenUsedWei.toString());
+                    const tokenBalance = weiToCrc(balance.demurragedTotalBalance);
+                    const usagePercentage = tokenBalance > 0 ? (tokenUsedCrc / tokenBalance) * 100 : 0;
+                    
+                    return (
+                      <div key={index} className="bg-gray-50 p-2 rounded border border-gray-200">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-mono text-xs text-gray-600 break-all">{balance.tokenAddress}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Balance:</span>
+                            <p className="font-medium">{formatCRC(tokenBalance)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Used:</span>
+                            <p className="font-medium">{formatCRC(tokenUsedCrc)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Usage:</span>
+                            <p className={`font-medium ${
+                              usagePercentage > 75 ? 'text-red-600' : 
+                              usagePercentage > 25 ? 'text-yellow-600' : 
+                              usagePercentage > 0 ? 'text-green-600' :
+                              'text-gray-400'
+                            }`}>
+                              {usagePercentage.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

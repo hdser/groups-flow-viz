@@ -20,35 +20,45 @@ export const parsePairKey = (key) => {
   return { from, to };
 };
 
-export const calculateFlowPairs = (groups) => {
+export const calculateFilteredFlowPairs = (allGroups, filteredGroups) => {
   const pairs = [];
+  const filteredGroupIds = new Set(filteredGroups.map(g => g.group.toLowerCase()));
   
-  // Generate all possible treasury -> mintHandler pairs
-  for (let i = 0; i < groups.length; i++) {
-    for (let j = 0; j < groups.length; j++) {
-      if (i !== j) {
-        const groupA = groups[i];
-        const groupB = groups[j];
-        
-        // Treasury A to MintHandler B
+  console.log(`Creating pairs: ${filteredGroups.length} source groups × ${allGroups.length} target groups`);
+  
+  // Only calculate flows FROM treasuries with sufficient balance
+  for (const sourceGroup of filteredGroups) {
+    for (const targetGroup of allGroups) {
+      if (sourceGroup.group !== targetGroup.group) {
         pairs.push({
-          from: groupA.treasury,
-          to: groupB.mintHandler,
-          fromGroup: groupA.group,
-          toGroup: groupB.group,
-          key: generatePairKey(groupA.treasury, groupB.mintHandler)
+          from: sourceGroup.treasury,
+          to: targetGroup.mintHandler,
+          fromGroup: sourceGroup.group,
+          toGroup: targetGroup.group,
+          sourceBalance: sourceGroup.balanceCRC,
+          key: generatePairKey(sourceGroup.treasury, targetGroup.mintHandler)
         });
       }
     }
   }
   
+  console.log(`Created ${pairs.length} flow pairs from ${filteredGroups.length} groups with balance >= threshold`);
+  
   return pairs;
 };
 
-export const buildGraphElements = (groups, flows, profiles) => {
+export const buildGraphElements = (groups, flows, profiles, balances) => {
   const nodes = [];
   const edges = [];
-  const nodeFlows = new Map(); // Track total in/out flows per node
+  const nodeFlows = new Map();
+  const balanceMap = new Map();
+  
+  // Create balance map
+  if (balances) {
+    balances.forEach(b => {
+      balanceMap.set(b.group.toLowerCase(), b.balanceCRC);
+    });
+  }
   
   // Calculate total flows per node
   Object.entries(flows).forEach(([key, flow]) => {
@@ -72,6 +82,24 @@ export const buildGraphElements = (groups, flows, profiles) => {
   groups.forEach(group => {
     const profile = profiles[group.group.toLowerCase()];
     const flows = nodeFlows.get(group.group) || { in: 0, out: 0 };
+    const balance = balanceMap.get(group.group.toLowerCase()) || 0;
+    const totalFlow = flows.in + flows.out;
+    
+    // Calculate node size based on total flow
+    const minSize = 40;
+    const maxSize = 100;
+    const maxFlow = Math.max(...Array.from(nodeFlows.values()).map(f => f.in + f.out), 1);
+    const size = minSize + (maxSize - minSize) * (totalFlow / maxFlow);
+    
+    // Color based on balance
+    let color = '#7B3FF2'; // Default purple
+    if (balance === 0) {
+      color = '#9CA3AF'; // Gray for zero balance
+    } else if (balance < 100) {
+      color = '#F59E0B'; // Amber for low balance
+    } else if (balance > 10000) {
+      color = '#10B981'; // Green for high balance
+    }
     
     nodes.push({
       data: {
@@ -81,7 +109,12 @@ export const buildGraphElements = (groups, flows, profiles) => {
         mintHandler: group.mintHandler,
         totalIn: flows.in,
         totalOut: flows.out,
-        profile
+        totalFlow,
+        balance,
+        profile,
+        size,
+        color,
+        lowBalance: balance < 1000
       }
     });
   });

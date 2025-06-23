@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { calculateAllFlows } from '../services/flowCalculator';
+import { calculateFilteredFlows } from '../services/flowCalculator';
 import { CACHE_DURATION } from '../utils/constants';
 import toast from 'react-hot-toast';
 
-export const useFlowCalculations = (groups) => {
+export const useFlowCalculations = (allGroups, filteredGroups, calculationKey) => {
   const [progress, setProgress] = useState(0);
 
   const query = useQuery({
-    queryKey: ['flows', groups?.length],
+    queryKey: ['flows', calculationKey], // Use calculation key instead of group data
     queryFn: async () => {
-      if (!groups || groups.length === 0) return {};
+      if (!allGroups || allGroups.length === 0 || !filteredGroups || filteredGroups.length === 0) {
+        return {};
+      }
       
       const toastId = toast.loading('Calculating flows...', {
         duration: Infinity
       });
       
       try {
-        const flows = await calculateAllFlows(groups, (p) => {
+        setProgress(0); // Reset progress
+        const flows = await calculateFilteredFlows(allGroups, filteredGroups, (p) => {
           setProgress(p);
           toast.loading(`Calculating flows... ${Math.round(p * 100)}%`, {
             id: toastId
@@ -34,9 +37,9 @@ export const useFlowCalculations = (groups) => {
         throw error;
       }
     },
-    staleTime: CACHE_DURATION.FLOWS,
-    gcTime: CACHE_DURATION.FLOWS * 2,
-    enabled: !!groups && groups.length > 0,
+    staleTime: Infinity, // Never refetch automatically
+    gcTime: Infinity, // Keep in cache forever
+    enabled: calculationKey > 0 && !!allGroups && allGroups.length > 0 && !!filteredGroups && filteredGroups.length > 0,
   });
 
   return {
