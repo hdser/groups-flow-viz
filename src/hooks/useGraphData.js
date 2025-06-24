@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createGraphInstance, updateGraphFilters } from '../services/graphBuilder';
 import { useStore } from './useStore';
 
-export const useGraphData = (groups, flows, profiles, balances) => {
+export const useGraphData = (groups, flows, profiles, balances, reachabilityAnalysis) => {
   const [cy, setCy] = useState(null);
   const containerRef = useRef(null);
   const { layoutType } = useStore();
@@ -15,7 +15,8 @@ export const useGraphData = (groups, flows, profiles, balances) => {
       groups,
       flows,
       profiles || {},
-      balances
+      balances,
+      reachabilityAnalysis
     );
 
     setCy(instance);
@@ -23,7 +24,7 @@ export const useGraphData = (groups, flows, profiles, balances) => {
     return () => {
       instance.destroy();
     };
-  }, [groups, flows, profiles, balances]);
+  }, [groups, flows, profiles, balances, reachabilityAnalysis]);
 
   return {
     cy,

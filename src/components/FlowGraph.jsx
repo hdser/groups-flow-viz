@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useGraphData } from '../hooks/useGraphData';
 import { useStore } from '../hooks/useStore';
-import { updateGraphFilters, getLayoutConfig } from '../services/graphBuilder';
+import { updateGraphFilters, getLayoutConfig, applyHierarchicalLayout, runLayoutWithFixes } from '../services/graphBuilder';
 
-export default function FlowGraph({ groups, flows, profiles, balances }) {
-  const { cy, containerRef } = useGraphData(groups, flows, profiles, balances);
+export default function FlowGraph({ groups, flows, profiles, balances, reachabilityAnalysis }) {
+  const { cy, containerRef } = useGraphData(groups, flows, profiles, balances, reachabilityAnalysis);
   const { 
     minFlowFilter, 
     setSelectedNode, 
@@ -32,11 +32,25 @@ export default function FlowGraph({ groups, flows, profiles, balances }) {
     // Only update layout if it actually changed
     if (layoutRef.current !== layoutType) {
       layoutRef.current = layoutType;
-      const elements = cy.elements();
-      const layout = cy.layout(getLayoutConfig(layoutType, elements.nodes(), elements.edges()));
-      layout.run();
+      
+      if (layoutType === 'hierarchy' && reachabilityAnalysis) {
+        // Use special hierarchy layout
+        applyHierarchicalLayout(cy, reachabilityAnalysis);
+      } else {
+        // Use standard layouts with fixes for problematic ones
+        const elements = cy.elements();
+        const layoutConfig = getLayoutConfig(layoutType, elements.nodes(), elements.edges(), reachabilityAnalysis);
+        
+        // Use special handling for layouts that have issues with disconnected nodes
+        if (['breadthfirst', 'dagre', 'concentric'].includes(layoutType)) {
+          runLayoutWithFixes(cy, layoutType, layoutConfig);
+        } else {
+          const layout = cy.layout(layoutConfig);
+          layout.run();
+        }
+      }
     }
-  }, [cy, layoutType]);
+  }, [cy, layoutType, reachabilityAnalysis]);
 
   useEffect(() => {
     if (!cy) return;
@@ -106,8 +120,18 @@ export default function FlowGraph({ groups, flows, profiles, balances }) {
         <button
           onClick={() => {
             if (cy) {
-              const layout = cy.layout(getLayoutConfig(layoutType, cy.nodes(), cy.edges()));
-              layout.run();
+              if (layoutType === 'hierarchy' && reachabilityAnalysis) {
+                applyHierarchicalLayout(cy, reachabilityAnalysis);
+              } else {
+                const layoutConfig = getLayoutConfig(layoutType, cy.nodes(), cy.edges(), reachabilityAnalysis);
+                
+                if (['breadthfirst', 'dagre', 'concentric'].includes(layoutType)) {
+                  runLayoutWithFixes(cy, layoutType, layoutConfig);
+                } else {
+                  const layout = cy.layout(layoutConfig);
+                  layout.run();
+                }
+              }
             }
           }}
           className="bg-white px-3 py-1 rounded shadow-md text-sm hover:bg-gray-50"

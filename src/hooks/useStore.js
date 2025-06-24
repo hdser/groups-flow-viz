@@ -10,6 +10,13 @@ export const useStore = create((set) => ({
   balancesLoading: false,
   layoutType: 'fcose', // Default layout
   
+  // Reachability analysis data
+  reachabilityAnalysis: null,
+  reachabilityLoading: false,
+  selectedReachabilityNode: null,
+  hierarchyViewMode: 'score', // 'score', 'level', 'volume'
+  
+  // Actions
   setSelectedNode: (node) => set({ selectedNode: node }),
   setSelectedFlow: (flow) => set({ selectedFlow: flow }),
   setMinFlowFilter: (value) => set({ minFlowFilter: value }),
@@ -19,4 +26,10 @@ export const useStore = create((set) => ({
   setBalancesLoading: (loading) => set({ balancesLoading: loading }),
   clearBalances: () => set({ treasuryBalances: null }),
   setLayoutType: (type) => set({ layoutType: type }),
+  
+  // Reachability actions
+  setReachabilityAnalysis: (analysis) => set({ reachabilityAnalysis: analysis }),
+  setReachabilityLoading: (loading) => set({ reachabilityLoading: loading }),
+  setSelectedReachabilityNode: (node) => set({ selectedReachabilityNode: node }),
+  setHierarchyViewMode: (mode) => set({ hierarchyViewMode: mode }),
 }));

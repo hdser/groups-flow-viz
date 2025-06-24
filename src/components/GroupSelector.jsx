@@ -61,9 +61,8 @@ export default function GroupSelector({ groups, totalGroups, filteredGroups }) {
           <option value="fcose">Force-Directed (Default)</option>
           <option value="cose">Spring Layout</option>
           <option value="grid">Grid Layout</option>
-          <option value="dagre">Hierarchical DAG</option>
-          <option value="breadthfirst">Tree Layout</option>
           <option value="concentric">Concentric Circles</option>
+          <option value="hierarchy">Hierarchical Levels</option>
         </select>
       </div>
     </div>

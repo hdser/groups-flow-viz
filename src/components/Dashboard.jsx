@@ -1,9 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useGroups, useProfiles, useTreasuryBalances } from '../hooks/useGroups';
 import { useFlowCalculations } from '../hooks/useFlowCalculations';
+import { useReachability } from '../hooks/useReachability';
 import FlowGraph from './FlowGraph';
 import GroupSelector from './GroupSelector';
 import FlowDetails from './FlowDetails';
+import HierarchyAnalysis from './HierarchyAnalysis';
 import LoadingStates from './LoadingStates';
 import { getFlowStats } from '../services/flowCalculator';
 import { formatCRC } from '../utils/formatters';
@@ -14,6 +16,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { minTreasuryBalance } = useStore();
   const [calculationKey, setCalculationKey] = useState(0); // Key to trigger new calculations
+  const [activeTab, setActiveTab] = useState('graph'); // 'graph', 'hierarchy', 'details'
   
   const { data: groups, isLoading: groupsLoading, error: groupsError } = useGroups();
   const { data: balances, isLoading: balancesLoading } = useTreasuryBalances(groups);
@@ -42,6 +45,9 @@ export default function Dashboard() {
   const { data: profiles } = useProfiles(addresses);
   
   const stats = flows ? getFlowStats(flows) : null;
+  
+  // Reachability analysis
+  const reachabilityAnalysis = useReachability(groups, flows);
 
   // Handler for calculating flows
   const handleCalculateFlows = () => {
@@ -71,7 +77,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-900">
-                Circles Flow Dashboard
+                Groups Flow Visualization
               </h1>
               {stats && (
                 <div className="flex items-center space-x-4 text-sm text-gray-600">
@@ -171,55 +177,109 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Graph Area */}
+          {/* Right Content Area with Tabs */}
           <div className="lg:col-span-3">
-            {balancesLoading ? (
-              <LoadingStates.Balances />
-            ) : flowsLoading ? (
-              <LoadingStates.Flows progress={progress} />
-            ) : flows && Object.keys(flows).length > 0 ? (
-              <div className="card h-[600px]">
-                <FlowGraph 
-                  groups={groups} 
-                  flows={flows} 
-                  profiles={profiles}
-                  balances={balances}
-                />
-              </div>
-            ) : (
-              <div className="card h-[600px] flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  {calculationKey === 0 ? (
-                    <>
-                      <p className="text-lg mb-2">No flows calculated yet</p>
-                      <p className="text-sm mb-4">
-                        Configure your filters and click "Calculate Flows" to start
-                      </p>
-                      {groupsWithSufficientBalance.length === 0 && (
-                        <p className="text-sm text-yellow-600">
-                          Note: No groups meet the current treasury balance threshold of {formatCRC(minTreasuryBalance)} CRC
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-lg mb-2">No flows found</p>
-                      <p className="text-sm">
-                        All flow calculations returned zero or failed
-                      </p>
-                      <p className="text-xs mt-2 text-gray-400">
-                        Try adjusting the treasury balance threshold
-                      </p>
-                    </>
+            {/* Tab Navigation */}
+            <div className="border-b border-gray-200 mb-4">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('graph')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'graph'
+                      ? 'border-circles-purple text-circles-purple'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Flow Graph
+                </button>
+                <button
+                  onClick={() => setActiveTab('hierarchy')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'hierarchy'
+                      ? 'border-circles-purple text-circles-purple'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  disabled={!reachabilityAnalysis}
+                >
+                  Hierarchy Analysis
+                  {reachabilityAnalysis && (
+                    <span className="ml-2 text-xs bg-circles-purple text-white px-2 py-0.5 rounded-full">
+                      {reachabilityAnalysis.summary.totalNodes}
+                    </span>
                   )}
-                </div>
-              </div>
-            )}
-            
-            {/* Flow Details */}
-            <div className="mt-6">
-              <FlowDetails flows={flows} />
+                </button>
+                <button
+                  onClick={() => setActiveTab('details')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'details'
+                      ? 'border-circles-purple text-circles-purple'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Flow Details
+                </button>
+              </nav>
             </div>
+
+            {/* Tab Content */}
+            {activeTab === 'graph' && (
+              <>
+                {balancesLoading ? (
+                  <LoadingStates.Balances />
+                ) : flowsLoading ? (
+                  <LoadingStates.Flows progress={progress} />
+                ) : flows && Object.keys(flows).length > 0 ? (
+                  <div className="card h-[600px]">
+                    <FlowGraph 
+                      groups={groups} 
+                      flows={flows} 
+                      profiles={profiles}
+                      balances={balances}
+                      reachabilityAnalysis={reachabilityAnalysis}
+                    />
+                  </div>
+                ) : (
+                  <div className="card h-[600px] flex items-center justify-center">
+                    <div className="text-center text-gray-500">
+                      {calculationKey === 0 ? (
+                        <>
+                          <p className="text-lg mb-2">No flows calculated yet</p>
+                          <p className="text-sm mb-4">
+                            Configure your filters and click "Calculate Flows" to start
+                          </p>
+                          {groupsWithSufficientBalance.length === 0 && (
+                            <p className="text-sm text-yellow-600">
+                              Note: No groups meet the current treasury balance threshold of {formatCRC(minTreasuryBalance)} CRC
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg mb-2">No flows found</p>
+                          <p className="text-sm">
+                            All flow calculations returned zero or failed
+                          </p>
+                          <p className="text-xs mt-2 text-gray-400">
+                            Try adjusting the treasury balance threshold
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === 'hierarchy' && (
+              <HierarchyAnalysis 
+                analysis={reachabilityAnalysis}
+                profiles={profiles}
+              />
+            )}
+
+            {activeTab === 'details' && (
+              <FlowDetails flows={flows} />
+            )}
           </div>
         </div>
       </main>
